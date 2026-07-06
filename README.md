@@ -30,6 +30,13 @@ The stanford-stages application is most readily configured and used by editing t
 
 _Note_: These instruction are for the master branch.
 
+## Running with Docker
+
+To run the application in a container without setting up conda by hand, see
+[`README.docker.md`](README.docker.md). It documents one-time model setup,
+the `docker compose up --build` workflow, and the dependency fixes required
+for a pip-based build.
+
 ## Installation and Dependencies
 
 Special thanks to Giorgio for the following instructions:
@@ -140,9 +147,18 @@ The sleep staging classification models are hosted externally at the following l
 * ac.zip - https://www.informaton.org/narco/ml/ac.zip [770 MiB, 807 MB]
 * <strike>gp.zip</strike>*
  
-Download and extract the [ac.zip](https://www.informaton.org/narco/ml/ac.zip) file to your computer system.  These models, along with a PSG (.edf file) are necessary for the software to run.  The .zip file may be deleted once its contents have been extracted.  
+Download and extract the [ac.zip](https://www.informaton.org/narco/ml/ac.zip) file to your computer system.  These models, along with a PSG (.edf file) are necessary for the software to run.  The .zip file may be deleted once its contents have been extracted.
 
-See the JSON configuration instructions for how to specify the location model locations for use with the software.
+A helper script automates this. From the repository root:
+
+```sh
+./get_assets.sh             # models + a sample EDF (CHP040.edf)
+./get_assets.sh models      # models only
+```
+
+It also fetches a sample recording (`CHP040.edf`, ~399 MiB) for testing and
+places it under `data/input/`. Re-running is safe; existing files are skipped
+unless you pass `--force`. See the JSON configuration instructions for how to specify the location model locations for use with the software.
    
 When complete the 'ml/' directory tree should like:<pre>
 ac/

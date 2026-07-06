@@ -1,0 +1,34 @@
+# Version control and editor cruft
+.git
+.gitignore
+.idea
+.vscode
+
+# Python caches and build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info
+.pytest_cache/
+
+# Local data and outputs - keep these out of the image; mount them instead
+ml/ac/
+ml/gp/
+ml/ac.zip
+ml/scaling.zip
+data/
+output/
+stanford_stages/
+*.hypno_pkl
+*.hypnodensity.h5
+*.features.h5
+
+# Backups and stray files
+*.bak
+*.zip
+narco_detector.zip
+Demo.pkl
+
+# Don't copy the Windows-focused sample config; the docker json is used instead
+stanford_stages.json

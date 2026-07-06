@@ -1,0 +1,7 @@
+# Build-time constraints for pip.
+#
+# pyedflib 0.1.22 ships a Cython .pyx source that does not compile under
+# Cython 3.x (the compiler crashes in Cython.Compiler.ExprNodes). Forcing a
+# pre-3.0 Cython in the build-isolation environment fixes the wheel build.
+# PIP_CONSTRAINT (set in the Dockerfile) is honored during build isolation.
+Cython<3.0

@@ -18,6 +18,9 @@ ml/scaling.zip
 ml/ac
 ml/gp
 *.json
+# Keep the Docker sample config under version control - it holds static
+# container paths only (no user/study data).
+!stanford_stages.docker.json
 *.bat
 test_run_stanford_stages.py
 test_run_stanford_stages.py

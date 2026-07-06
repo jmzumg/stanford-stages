@@ -1,0 +1,41 @@
+# Run stanford-stages in a container.
+#
+# Before the first run:
+#   1. Fetch the assets (LSTM models + optional sample EDF):
+#        ./get_assets.sh
+#   2. Drop one or more .edf files into data/input/.
+#   3. (Optional) Edit stanford_stages.docker.json - in particular the
+#      "edf_filename" entry - or mount your own config.
+#
+# Then run from the repository root:
+#   docker compose up --build
+#
+# Results are written to data/output/.
+#
+# To pass a different config file, set the CONFIG env var:
+#   CONFIG=/app/my_config.json docker compose up
+
+services:
+  stanford-stages:
+    build: .
+    image: stanford-stages:latest
+    container_name: stanford-stages
+
+    # CONFIG lets you override which JSON config the entrypoint uses. The
+    # value must be a path inside the container.
+    environment:
+      - MPLBACKEND=Agg
+
+    volumes:
+      # The committed ML assets (scaling/, noiseM.mat) are baked into the
+      # image. Only the large, externally-downloaded ac/ models are mounted.
+      - ./ml/ac:/app/ml/ac:ro
+      # EDF inputs and the results directory.
+      - ./data/input:/data/input:ro
+      - ./data/output:/data/output
+      # Drop a custom config here if you do not want to use the bundled one.
+      - ./stanford_stages.docker.json:/app/stanford_stages.docker.json:ro
+
+    # Default to the bundled docker config. Override with e.g.
+    # command: ["/app/my_config.json"]
+    command: ["${CONFIG:-/app/stanford_stages.docker.json}"]
