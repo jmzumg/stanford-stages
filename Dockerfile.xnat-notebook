@@ -105,6 +105,15 @@ ENV STAGES_ENV=stanford-stages \
     STAGES_HOME=/opt/stanford-stages \
     MPLBACKEND=Agg
 
+# base-notebook:hub-4.0.2 ships jupyterhub 4.0.2, whose singleuser crashes at
+# startup with notebook 7 + nbclassic: it tries to import the removed
+# notebook.base.handlers.IPythonHandler (jupyterhub issue #4649, fixed in 4.1.0).
+# Overlay a patched 4.1.x; a 4.1.x singleuser is compatible with the 4.0.x hub.
+# NB: <5 keeps this within major 4 to match the production hub.
+RUN mamba install -n base -c conda-forge -y 'jupyterhub>=4.1,<5' && \
+    mamba clean -a -y && \
+    fix-permissions "${CONDA_DIR}"
+
 # Bring the compiled 3.7 env and its kernelspec across from the builder. The env
 # path (${CONDA_DIR}/envs/stanford-stages) is identical in both stages, so the
 # kernel.json argv and env shebangs remain valid.
