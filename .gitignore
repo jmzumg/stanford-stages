@@ -21,6 +21,7 @@ ml/gp
 # Keep the Docker sample config under version control - it holds static
 # container paths only (no user/study data).
 !stanford_stages.docker.json
+!stanford_stages.xnat.json
 *.bat
 test_run_stanford_stages.py
 test_run_stanford_stages.py

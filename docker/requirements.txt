@@ -5,8 +5,14 @@
 #   - pyEDFlib.egg==info   (not a real PyPI package)
 #   - skimage==0.0         (scikit_image below already provides the skimage module)
 #
-# tf_nightly_2.0_preview is intentionally omitted; tensorflow==2.5.0 already
+# tf_nightly_2.0_preview is intentionally omitted; tensorflow-cpu==2.5.0 already
 # supplies everything the code needs.
+#
+# tensorflow-cpu (not tensorflow): there is no GPU on the compute host, and the
+# CPU wheel is smaller. gpflow 2.1.4 hard-requires the 'tensorflow' distribution,
+# so it is installed --no-deps in the Dockerfile; its non-tensorflow runtime deps
+# (multipledispatch, tabulate, typing-extensions, packaging) are listed here so
+# they are still present.
 
 numpy==1.19.5
 scipy==1.3.2
@@ -22,6 +28,11 @@ matplotlib==3.1.1
 # both versions.
 h5py==3.1.0
 pyedflib==0.1.22
-tensorflow==2.5.0
+tensorflow-cpu==2.5.0
 tensorflow-probability==0.13.0
-gpflow==2.1.4
+
+# gpflow 2.1.4 non-tensorflow runtime deps (gpflow itself is installed --no-deps).
+multipledispatch>=0.6
+tabulate
+typing-extensions
+packaging

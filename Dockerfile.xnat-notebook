@@ -1,0 +1,133 @@
+# XNAT Jupyter notebook image bundling the stanford-stages sleep stage classifier.
+#
+# The classifier is pinned to Python 3.7 (TensorFlow 2.5, numpy 1.19.5), which is
+# incompatible with the notebook base image's Python. It is therefore installed
+# into a dedicated Python 3.7 conda environment that is registered as a Jupyter
+# kernel ("Python 3.7 (stanford-stages)"). The JupyterLab UI runs on the base
+# image's Python; the classifier runs on the 3.7 kernel.
+#
+# EVERYTHING needed to score a recording is baked into the image: the application
+# source, the scaling/noise assets, AND the large ac/ LSTM models. Nothing needs
+# to be mounted at runtime. XNAT-mounted study data (EDF files) is read from
+# wherever XNAT mounts it; results are written to the user's workspace.
+#
+# Size choices (this is a single-purpose tool image, not a general datascience
+# workspace):
+#   - base-notebook, NOT datascience-notebook: the classifier runs entirely in
+#     its own 3.7 env, so the datascience base's R/Julia/scipy stack (~5 GB) is
+#     dead weight. base-notebook still provides JupyterLab, jupyterhub-singleuser,
+#     mamba, fix-permissions and start.sh.
+#   - multi-stage: the C toolchain that compiles pyedflib lives only in the
+#     builder stage; the final image ships the compiled 3.7 env without it.
+#   - tensorflow-cpu instead of tensorflow (no GPU on the compute host). gpflow
+#     hard-requires the 'tensorflow' distribution, so it is installed --no-deps
+#     with its other deps supplied via requirements.txt.
+#
+# Build from the repository ROOT so the source and models are in the build
+# context. Run ./get_assets.sh first so ml/ac/ is populated:
+#   ./get_assets.sh models
+#   docker build -f Dockerfile.xnat-notebook -t xnat/stanford-stages-notebook:latest .
+
+ARG JH_VERSION=4.0.2
+
+# builder: compile the pinned Python 3.7 environment (needs the C toolchain)
+FROM quay.io/jupyter/base-notebook:hub-$JH_VERSION AS builder
+
+USER root
+
+# Plain HTTP (port 80) is blocked on the GWDG network and the docker-stacks base
+# pins apt to http *.ubuntu.com mirrors, so apt-get would 403. Point apt at the
+# GWDG HTTPS Ubuntu mirror (overridable for builds off the GWDG network).
+ARG UBUNTU_MIRROR=https://ftp.gwdg.de/pub/linux/debian/ubuntu
+RUN for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do \
+      [ -f "$f" ] || continue; \
+      sed -i -E \
+        -e "s#https?://snapshot\.ubuntu\.com/ubuntu/[0-9A-Za-z]+#${UBUNTU_MIRROR}#g" \
+        -e "s#https?://(archive|security)\.ubuntu\.com/ubuntu#${UBUNTU_MIRROR}#g" \
+        "$f"; \
+    done
+
+# Build toolchain to compile pyedflib 0.1.22 from source.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential gcc g++ pkg-config && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+USER ${NB_UID}
+
+# Create the Python 3.7 environment for the pinned scientific stack and register
+# it as a Jupyter kernel. PIP_CONSTRAINT pins Cython<3 so the pyedflib source
+# build succeeds (see docker/constraints.txt). gpflow is installed --no-deps so
+# it does not pull the GPU 'tensorflow' wheel alongside tensorflow-cpu (its other
+# runtime deps are listed in requirements.txt). The kernelspec is installed into
+# the base conda prefix (--prefix "${CONDA_DIR}") so it survives XNAT remounting
+# /home at runtime.
+COPY --chown=${NB_UID}:${NB_GID} docker/requirements.txt /tmp/stages-requirements.txt
+COPY --chown=${NB_UID}:${NB_GID} docker/constraints.txt /tmp/stages-constraints.txt
+RUN mamba create -y -n stanford-stages python=3.7 && \
+    PIP_CONSTRAINT=/tmp/stages-constraints.txt \
+        mamba run -n stanford-stages pip install --no-cache-dir \
+        ipykernel -r /tmp/stages-requirements.txt && \
+    PIP_CONSTRAINT=/tmp/stages-constraints.txt \
+        mamba run -n stanford-stages pip install --no-cache-dir --no-deps gpflow==2.1.4 && \
+    mamba run -n stanford-stages python -m ipykernel install \
+        --prefix "${CONDA_DIR}" \
+        --name stanford-stages \
+        --display-name "Python 3.7 (stanford-stages)" && \
+    mamba clean -a -y && \
+    rm /tmp/stages-requirements.txt /tmp/stages-constraints.txt
+
+# final: runtime image without the build toolchain
+FROM quay.io/jupyter/base-notebook:hub-$JH_VERSION
+
+USER root
+
+ARG UBUNTU_MIRROR=https://ftp.gwdg.de/pub/linux/debian/ubuntu
+RUN for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do \
+      [ -f "$f" ] || continue; \
+      sed -i -E \
+        -e "s#https?://snapshot\.ubuntu\.com/ubuntu/[0-9A-Za-z]+#${UBUNTU_MIRROR}#g" \
+        -e "s#https?://(archive|security)\.ubuntu\.com/ubuntu#${UBUNTU_MIRROR}#g" \
+        "$f"; \
+    done
+
+# Runtime-only libraries: dcmtk (DICOM tools, matches the sibling xnat notebook
+# images) and the shared libraries needed to import h5py / matplotlib /
+# TensorFlow at runtime.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        dcmtk libgl1 libglib2.0-0 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+USER ${NB_UID}
+
+ENV STAGES_ENV=stanford-stages \
+    STAGES_HOME=/opt/stanford-stages \
+    MPLBACKEND=Agg
+
+# Bring the compiled 3.7 env and its kernelspec across from the builder. The env
+# path (${CONDA_DIR}/envs/stanford-stages) is identical in both stages, so the
+# kernel.json argv and env shebangs remain valid.
+COPY --from=builder --chown=${NB_UID}:${NB_GID} \
+    ${CONDA_DIR}/envs/stanford-stages ${CONDA_DIR}/envs/stanford-stages
+COPY --from=builder --chown=${NB_UID}:${NB_GID} \
+    ${CONDA_DIR}/share/jupyter/kernels/stanford-stages ${CONDA_DIR}/share/jupyter/kernels/stanford-stages
+
+# Bake in the application source and ALL assets (scaling/, noiseM.mat and the
+# large ac/ models under ml/). See Dockerfile.xnat-notebook.dockerignore for what
+# is excluded from the build context.
+COPY --chown=${NB_UID}:${NB_GID} . "${STAGES_HOME}"
+
+# Make the flat module layout (run_stanford_stages, inf_*) importable from the
+# 3.7 kernel without any sys.path manipulation in the notebook.
+RUN printf '%s\n' "${STAGES_HOME}" > \
+    "$(mamba run -n "${STAGES_ENV}" python -c 'import site; print(site.getsitepackages()[0])')/stanford-stages.pth" && \
+    fix-permissions "${CONDA_DIR}" && \
+    fix-permissions "/home/${NB_USER}"
+
+# Drop the starter notebook into the default working directory so it is visible
+# when the server launches.
+RUN cp "${STAGES_HOME}/notebooks/stanford_stages_demo.ipynb" "/home/${NB_USER}/" 2>/dev/null || true
+
+# See xnat-jupyterhub-image/dockerfiles/xnat-datascience-notebook/Dockerfile.
+HEALTHCHECK NONE

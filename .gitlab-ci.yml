@@ -1,0 +1,53 @@
+# CI for the xnat stanford-stages notebook image.
+#
+# PROTOTYPE: this repo is not yet a GWDG GitLab project and is not in
+# gitlab-config, so this pipeline cannot run/push until that is set up. It builds
+# Dockerfile.xnat-notebook, which bakes in the ~770 MiB LSTM models fetched by
+# get_assets.sh (cached across builds so it is downloaded only once).
+stages:
+  - build
+
+variables:
+  DOCKER_BUILDKIT: "1"
+  # Job image via the GWDG Nexus mirror (the notebook base itself is on quay.io).
+  REGISTRY: nexus.gwdg.de:5000
+
+# Retry flaky jobs. script_failure covers the GWDG registry-auth endpoint, which
+# intermittently times out during docker login.
+default:
+  retry:
+    max: 2
+    when:
+      - script_failure
+      - runner_system_failure
+      - stuck_or_timeout_failure
+
+.build-common: &build-common
+  stage: build
+  image: ${REGISTRY}/library/docker:28
+  tags: [docker, linux]
+  # Persist the large model download across builds so get_assets.sh skips it.
+  cache:
+    key: stanford-stages-models
+    paths:
+      - ml/ac/
+  before_script:
+    - apk add --no-cache make curl unzip
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+
+build:
+  <<: *build-common
+  script:
+    - make build
+    - docker push "$CI_REGISTRY_IMAGE:latest"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+build-tagged:
+  <<: *build-common
+  script:
+    - VERSION=${CI_COMMIT_TAG#v}
+    - make build TAG=$VERSION
+    - docker push "$CI_REGISTRY_IMAGE:$VERSION"
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d/

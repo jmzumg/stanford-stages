@@ -1,0 +1,37 @@
+# Build-context ignore file for the XNAT notebook image.
+#
+# BuildKit uses <dockerfile>.dockerignore in preference to .dockerignore, so
+# this file - NOT the root .dockerignore - governs the notebook build. Unlike
+# the root .dockerignore (which excludes the models), this build BUNDLES
+# everything under ml/, so those are deliberately NOT ignored here.
+
+# Version control and CI
+.git
+.github
+.gitignore
+
+# The reference XNAT JupyterHub repo - not needed inside the image
+xnat-jupyterhub-image/
+
+# Python caches and build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info
+.pytest_cache/
+
+# Generated run outputs (kept out; models under ml/ are intentionally included)
+data/output/
+*.hypno_pkl
+Demo.pkl
+
+# Backups and stray archives
+*.bak
+*.zip
+narco_detector.zip
+
+# The other images' build files are irrelevant to this one
+Dockerfile
+docker-compose.yml
+README.docker.md

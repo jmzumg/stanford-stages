@@ -37,6 +37,11 @@ To run the application in a container without setting up conda by hand, see
 the `docker compose up --build` workflow, and the dependency fixes required
 for a pip-based build.
 
+To run the classifier from a Jupyter notebook inside XNAT's JupyterHub
+integration, see [`README.xnat.md`](README.xnat.md). It builds a
+`xnat/stanford-stages-notebook` image that bundles everything (code and
+models) and exposes a `Python 3.7 (stanford-stages)` kernel.
+
 ## Installation and Dependencies
 
 Special thanks to Giorgio for the following instructions:
