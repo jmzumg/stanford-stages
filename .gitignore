@@ -3,6 +3,9 @@
 
 *.pyc
 
+# Local sample/study data (large EDF inputs, model outputs) - never commit.
+data/
+
 narco_detector.zip
 
 Demo.pkl

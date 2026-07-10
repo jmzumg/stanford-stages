@@ -1,7 +1,7 @@
 include .build-args
 export
 
-IMAGE_NAME := docker.gitlab.gwdg.de/medinf/kvf/kvf-projekte/xnat/stanford-stages
+IMAGE_NAME := docker.gitlab.gwdg.de/medinf/kvf/kvf-projekte/xnat/stanford-stages-notebook
 TAG ?= latest
 DOCKERFILE := Dockerfile.xnat-notebook
 # The notebook base image is on quay.io (not Docker Hub), so it is not routed
