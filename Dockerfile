@@ -8,6 +8,18 @@ FROM python:3.7-slim
 # Build toolchain and runtime libraries needed by pyedflib, h5py, matplotlib
 # and TensorFlow. libgl1 / libglib2.0-0 satisfy shared libraries that some
 # wheels dlopen at import time.
+# Point apt at the GWDG Debian mirror. The base image's default deb.debian.org /
+# security.debian.org hosts serve over HTTP, which is blocked on the GWDG network.
+ARG DEBIAN_MIRROR=https://ftp.gwdg.de/pub/linux/debian/debian
+ARG DEBIAN_SECURITY_MIRROR=https://ftp.gwdg.de/pub/linux/debian/debian-security
+RUN for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do \
+      [ -f "$f" ] || continue; \
+      sed -i -E \
+        -e "s#https?://(deb\.debian\.org|security\.debian\.org)/debian-security#${DEBIAN_SECURITY_MIRROR}#g" \
+        -e "s#https?://deb\.debian\.org/debian#${DEBIAN_MIRROR}#g" \
+        "$f"; \
+    done
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
